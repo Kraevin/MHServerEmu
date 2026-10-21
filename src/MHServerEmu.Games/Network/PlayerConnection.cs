@@ -2528,14 +2528,34 @@ namespace MHServerEmu.Games.Network
             var uiSystemLockState = message.As<NetMessageUISystemLockState>();
             if (!Verify.IsNotNull(uiSystemLockState)) return;
 
-            Region region = Player.GetRegion();
-            if (!Verify.IsNotNull(region)) return;
-
             PrototypeId uiSystemLockProtoRef = (PrototypeId)uiSystemLockState.PrototypeId;
             UISystemLockPrototype uiSystemLockProto = uiSystemLockProtoRef.As<UISystemLockPrototype>();
             if (!Verify.IsNotNull(uiSystemLockProto)) return;
 
+#if GAME_VERSION_1_53
+            // The client only acknowledges unlocks; it cannot grant or reset them.
+            if (!Verify.IsTrue(uiSystemLockState.State == 1)) return;
+
+            PropertyCollection properties = Player.Properties;
+            if (uiSystemLockProto.IsPerAvatar)
+            {
+                Avatar avatar = Player.GetActiveAvatarByIndex(uiSystemLockState.AvatarIndex);
+                if (!Verify.IsNotNull(avatar)) return;
+                properties = avatar.Properties;
+            }
+            else if (!Verify.IsTrue(uiSystemLockState.AvatarIndex == -1))
+                return;
+
+            int currentState = properties[PropertyEnum.UISystemLock, uiSystemLockProtoRef];
+            if (!Verify.IsTrue(currentState == 1 || currentState == 2)) return;
+
+            properties[PropertyEnum.UISystemLock, uiSystemLockProtoRef] = 1;
+#else
+            Region region = Player.GetRegion();
+            if (!Verify.IsNotNull(region)) return;
+
             Player.Properties[PropertyEnum.UISystemLock, uiSystemLockProtoRef] = uiSystemLockState.State;
+#endif
         }
 
 #if GAME_VERSION_1_52 || GAME_VERSION_1_53

@@ -1016,7 +1016,12 @@ namespace MHServerEmu.Games.Entities
                 avatar.SetPlayer(this);
 
                 if (invLoc.InventoryConvenienceLabel == InventoryConvenienceLabel.AvatarInPlay && invLoc.Slot == 0)
+                {
                     CurrentAvatar = avatar;
+#if GAME_VERSION_1_53
+                    UpdateUISystemLocks(avatar);
+#endif
+                }
             }
 
             if (IsInGame == false || entity is not Item item)
@@ -2130,7 +2135,7 @@ namespace MHServerEmu.Games.Entities
             if (characterLevel > Properties[PropertyEnum.PlayerMaxAvatarLevel])
                 Properties[PropertyEnum.PlayerMaxAvatarLevel] = characterLevel;
 
-            UpdateUISystemLocks();
+            UpdateUISystemLocks(avatar);
         }
 
         public bool CanUseLiveTuneBonuses()
@@ -4120,13 +4125,29 @@ namespace MHServerEmu.Games.Entities
             return Properties[PropertyEnum.UISystemLock, UIGlobalsPrototype.ChatSystemLock];
         }
 
-        public void UpdateUISystemLocks()
+        public void UpdateUISystemLocks(Avatar avatar = null)
         {
+#if GAME_VERSION_1_53
+            avatar ??= CurrentAvatar;
+#endif
             foreach (PrototypeId uiSystemLockProtoRef in GameDatabase.UIGlobalsPrototype.UISystemLockList)
             {
                 UISystemLockPrototype uiSystemLockProto = uiSystemLockProtoRef.As<UISystemLockPrototype>();
                 if (uiSystemLockProto.UnlockLevel == -1)
                     continue;
+
+#if GAME_VERSION_1_53
+                if (uiSystemLockProto.IsPerAvatar)
+                {
+                    if (avatar != null && avatar.CharacterLevel >= uiSystemLockProto.UnlockLevel &&
+                        avatar.Properties[PropertyEnum.UISystemLock, uiSystemLockProtoRef] == 0)
+                    {
+                        // State 2 presents the unlock notification until the client acknowledges it.
+                        avatar.Properties[PropertyEnum.UISystemLock, uiSystemLockProtoRef] = uiSystemLockProto.AutoAcknowledge ? 1 : 2;
+                    }
+                    continue;
+                }
+#endif
 
                 int currentState = Properties[PropertyEnum.UISystemLock, uiSystemLockProtoRef];
                 int maxAvatarLevel = Properties[PropertyEnum.PlayerMaxAvatarLevel];
