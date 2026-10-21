@@ -1,0 +1,16 @@
+[
+  {
+    "Enabled": true,
+    "Prototype": "Loot/Tables/Vendor/EternitySplinter/VendorEternitySplinterLoot.prototype",
+    "Path": "Choices[]",
+    "Description": "Add the existing Random Team-Up Box to Adam Warlock's shop. Its client-defined cost is 175 Eternity Splinters.",
+    "ValueType": "Prototype",
+    "Value": {
+      "ParentDataRef": 1071992662862269383,
+      "Item": 2988754540081125925,
+      "NumMin": 1,
+      "NumMax": 1,
+      "Weight": 100
+    }
+  }
+]
