@@ -638,6 +638,9 @@ namespace MHServerEmu.Games.Network
                 case ClientToGameServerMessage.NetMessageDialogResult:                      OnDialogResult(message); break;
                 case ClientToGameServerMessage.NetMessageVendorRequestBuyItemFrom:          OnVendorRequestBuyItemFrom(message); break;
                 case ClientToGameServerMessage.NetMessageVendorRequestSellItemTo:           OnVendorRequestSellItemTo(message); break;
+#if GAME_VERSION_1_53
+                case ClientToGameServerMessage.NetMessageVendorRequestSellItemsTo:          OnVendorRequestSellItemsTo(message); break;
+#endif
                 case ClientToGameServerMessage.NetMessageVendorRequestDonateItemTo:         OnVendorRequestDonateItemTo(message); break;
 #if GAME_VERSION_1_53
                 case ClientToGameServerMessage.NetMessageVendorRequestDonateItemsTo:        OnVendorRequestDonateItemsTo(message); break;
@@ -650,6 +653,7 @@ namespace MHServerEmu.Games.Network
                 case ClientToGameServerMessage.NetMessageSetTipSeen:                        OnSetTipSeen(message); break;
                 case ClientToGameServerMessage.NetMessageHUDTutorialDismissed:              OnHUDTutorialDismissed(message); break;
 #if GAME_VERSION_1_53
+                case ClientToGameServerMessage.NetMessageTryMoveInventoryContents:          OnTryMoveInventoryContents(message); break;
                 case ClientToGameServerMessage.NetMessageTryMoveItemsToInventory:           OnTryMoveItemsToInventory(message); break;
 #else
                 case ClientToGameServerMessage.NetMessageTryMoveInventoryContentsToGeneral: OnTryMoveInventoryContentsToGeneral(message); break;
@@ -1807,6 +1811,26 @@ namespace MHServerEmu.Games.Network
             Player.SellItemToVendor(avatarIndex, vendorRequestSellItemTo.ItemId, vendorRequestSellItemTo.VendorId);
         }
 
+#if GAME_VERSION_1_53
+        private void OnVendorRequestSellItemsTo(in MailboxMessage message)
+        {
+            var vendorRequestSellItemsTo = message.As<NetMessageVendorRequestSellItemsTo>();
+            if (!Verify.IsNotNull(vendorRequestSellItemsTo)) return;
+
+            foreach (ulong itemId in vendorRequestSellItemsTo.ItemIdsList)
+            {
+                Item item = Game.EntityManager.GetEntity<Item>(itemId);
+                if (item == null)
+                    continue;
+
+                if (!Verify.IsTrue(item.GetOwnerOfType<Player>() == Player, $"Player [{Player}] is attempting to sell item [{item}] that does not belong to them!"))
+                    return;
+
+                Player.SellItemToVendor(vendorRequestSellItemsTo.AvatarIndex, itemId, vendorRequestSellItemsTo.VendorId);
+            }
+        }
+#endif
+
         private void OnVendorRequestDonateItemTo(in MailboxMessage message)
         {
             var vendorRequestDonateItemTo = message.As<NetMessageVendorRequestDonateItemTo>();
@@ -1946,6 +1970,27 @@ namespace MHServerEmu.Games.Network
         }
 
 #if GAME_VERSION_1_53
+        private void OnTryMoveInventoryContents(in MailboxMessage message)
+        {
+            var tryMoveInventoryContents = message.As<NetMessageTryMoveInventoryContents>();
+            if (!Verify.IsNotNull(tryMoveInventoryContents)) return;
+
+            PrototypeId sourceInventoryProtoRef = (PrototypeId)tryMoveInventoryContents.SourceInventoryPrototype;
+            PrototypeId destInventoryProtoRef = (PrototypeId)tryMoveInventoryContents.DestInventoryPrototype;
+            if (sourceInventoryProtoRef == destInventoryProtoRef)
+                return;
+
+            Inventory sourceInventory = Player.GetInventoryByRef(sourceInventoryProtoRef);
+            if (!Verify.IsNotNull(sourceInventory)) return;
+
+            // Moving or stacking items mutates the source inventory, so snapshot its contents first.
+            using var itemIdsHandle = ListPool<ulong>.Get(out List<ulong> itemIds);
+            foreach (var entry in sourceInventory)
+                itemIds.Add(entry.Id);
+
+            TryMoveItemsToInventory(itemIds, destInventoryProtoRef);
+        }
+
         private void OnTryMoveItemsToInventory(in MailboxMessage message)
         {
             var tryMoveItemsToInventory = message.As<NetMessageTryMoveItemsToInventory>();
@@ -1953,13 +1998,17 @@ namespace MHServerEmu.Games.Network
 
             PrototypeId destInventoryProtoRef = (PrototypeId)tryMoveItemsToInventory.DestInventoryPrototype;
 
+            TryMoveItemsToInventory(tryMoveItemsToInventory.ItemIdsList, destInventoryProtoRef);
+        }
+
+        private void TryMoveItemsToInventory(IEnumerable<ulong> itemIds, PrototypeId destInventoryProtoRef)
+        {
             Inventory destInventory = Player.GetInventoryByRef(destInventoryProtoRef);
             if (!Verify.IsNotNull(destInventory)) return;
 
             EntityManager entityManager = Game.EntityManager;
-            for (int i = 0; i < tryMoveItemsToInventory.ItemIdsCount; i++)
+            foreach (ulong itemId in itemIds)
             {
-                ulong itemId = tryMoveItemsToInventory.ItemIdsList[i];
                 Item item = entityManager.GetEntity<Item>(itemId);
                 if (item == null)
                     continue;
@@ -1967,17 +2016,10 @@ namespace MHServerEmu.Games.Network
                 if (!Verify.IsTrue(item.GetOwnerOfType<Player>() == Player, $"Player [{Player}] is attempting to bulk move item [{item}] that belongs to another player"))
                     return;
 
-                uint freeSlot = destInventory.GetFreeSlot(item, true);
+                if (item.InventoryLocation.ContainerId == Player.Id && item.InventoryLocation.InventoryRef == destInventoryProtoRef)
+                    continue;
 
-                // we are full
-                if (freeSlot == Inventory.InvalidSlot)
-                {
-                    Player.SendInventoryFullMessage(item.Id, destInventory.PrototypeDataRef);
-                    return;
-                }
-
-                InventoryResult result = item.ChangeInventoryLocation(destInventory, freeSlot);
-                if (!Verify.IsTrue(result == InventoryResult.Success, $"Failed to change inventory location ({result})"))
+                if (Player.TryInventoryMove(itemId, Player.Id, destInventoryProtoRef, Inventory.InvalidSlot) == false)
                     return;
             }
         }
