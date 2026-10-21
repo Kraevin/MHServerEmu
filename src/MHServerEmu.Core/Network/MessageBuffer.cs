@@ -26,19 +26,26 @@ namespace MHServerEmu.Core.Network
         /// </summary>
         public MessageBuffer(Stream stream)
         {
+            byte[] buffer = null;
+
             try
             {
                 MessageId = CodedInputStream.ReadRawVarint32(stream);
 
-                _length = (int)CodedInputStream.ReadRawVarint32(stream);
-                if (_length > MaxSize)
-                    throw new Exception($"Message length {_length} exceeded the max allowed length of {MaxSize}.");
+                uint length = CodedInputStream.ReadRawVarint32(stream);
+                if (length > MaxSize)
+                    throw new Exception($"Message length {length} exceeded the max allowed length of {MaxSize}.");
 
-                _buffer = BufferPool.Rent(_length);
-                stream.Read(_buffer, 0, _length);
+                _length = (int)length;
+                buffer = BufferPool.Rent(_length);
+                stream.ReadExactly(buffer.AsSpan(0, _length));
+                _buffer = buffer;
             }
             catch (Exception e)
             {
+                if (buffer != null)
+                    BufferPool.Return(buffer);
+
                 MessageId = InvalidMessageId;
 
                 _length = 0;

@@ -680,7 +680,9 @@ namespace MHServerEmu.Games.Network
                 case ClientToGameServerMessage.NetMessageRespecPowerSpec:                   OnRespecPowerSpec(message); break;
                 case ClientToGameServerMessage.NetMessageNewItemGlintPlayed:                OnNewItemGlintPlayed(message); break;
                 case ClientToGameServerMessage.NetMessageNewItemHighlightCleared:           OnNewItemHighlightCleared(message); break;
-                // case ClientToGameServerMessage.NetMessageNewSynergyCleared:              OnNewSynergyCleared(message); break;
+#if GAME_VERSION_1_52 || GAME_VERSION_1_53
+                case ClientToGameServerMessage.NetMessageNewSynergyCleared:                OnNewSynergyCleared(message); break;
+#endif
                 case ClientToGameServerMessage.NetMessageUnassignMappedPower:               OnUnassignMappedPower(message); break;
 #if GAME_VERSION_1_52 || GAME_VERSION_1_53
                 case ClientToGameServerMessage.NetMessageAssignStolenPower:                 OnAssignStolenPower(message); break;
@@ -715,7 +717,7 @@ namespace MHServerEmu.Games.Network
                 case ClientToGameServerMessage.NetMessagePartyOperationRequest:             OnPartyOperationRequest(message); break;
                 // case ClientToGameServerMessage.NetMessagePSNNotification:                OnPSNNotification(message); break;
                 // case ClientToGameServerMessage.NetMessageSuggestPlayerToPartyLeader:     OnSuggestPlayerToPartyLeader(message); break;
-                // case ClientToGameServerMessage.NetMessageMissionTrackerFilterChange:     OnMissionTrackerFilterChange(message); break;
+                case ClientToGameServerMessage.NetMessageMissionTrackerFilterChange:       OnMissionTrackerFilterChange(message); break;
                 case ClientToGameServerMessage.NetMessageMissionTrackerFiltersUpdate:       OnMissionTrackerFiltersUpdate(message); break;
                 case ClientToGameServerMessage.NetMessageAchievementMissionTrackerFilterChange: OnAchievementMissionTrackerFilterChange(message); break;
                 // case ClientToGameServerMessage.NetMessageBillingRoutedClientMessage:     OnBillingRoutedClientMessage(message); break;
@@ -2343,6 +2345,22 @@ namespace MHServerEmu.Games.Network
             item.SetRecentlyAdded(false);
         }
 
+#if GAME_VERSION_1_52 || GAME_VERSION_1_53
+        private void OnNewSynergyCleared(in MailboxMessage message)
+        {
+            var newSynergyCleared = message.As<NetMessageNewSynergyCleared>();
+            if (!Verify.IsNotNull(newSynergyCleared)) return;
+
+            if (!Verify.IsTrue(newSynergyCleared.PlayerId == Player.Id, $"Player entity id mismatch, expected {Player.Id}, got {newSynergyCleared.PlayerId}"))
+                return;
+
+            PrototypeId avatarProtoRef = (PrototypeId)newSynergyCleared.AvatarPrototypeId;
+            if (!Verify.IsNotNull(avatarProtoRef.As<AvatarPrototype>())) return;
+
+            Player.Properties.RemoveProperty(new(PropertyEnum.AvatarSynergyNewUnlock, avatarProtoRef));
+        }
+#endif
+
         private void OnUnassignMappedPower(in MailboxMessage message)
         {
             var unassignMappedPower = message.As<NetMessageUnassignMappedPower>();
@@ -2638,6 +2656,14 @@ namespace MHServerEmu.Games.Network
 #endif
 
 #if GAME_VERSION_1_52 || GAME_VERSION_1_53
+        private void OnMissionTrackerFilterChange(in MailboxMessage message)
+        {
+            var missionTrackerFilterChange = message.As<NetMessageMissionTrackerFilterChange>();
+            if (!Verify.IsNotNull(missionTrackerFilterChange)) return;
+
+            ApplyMissionTrackerFilterChange(missionTrackerFilterChange);
+        }
+
         private void OnMissionTrackerFiltersUpdate(in MailboxMessage message)
         {
             var missionTrackerFiltersUpdate = message.As<NetMessageMissionTrackerFiltersUpdate>();
@@ -2645,14 +2671,16 @@ namespace MHServerEmu.Games.Network
 
             for (int i = 0; i < missionTrackerFiltersUpdate.MissionTrackerFilterChangesCount; i++)
             {
-                NetMessageMissionTrackerFilterChange missionTrackerFilterChange = missionTrackerFiltersUpdate.MissionTrackerFilterChangesList[i];
-
-                PrototypeId filterProtoRef = (PrototypeId)missionTrackerFilterChange.FilterPrototypeId;
-                if (!Verify.IsTrue(filterProtoRef != PrototypeId.Invalid))
-                    continue;
-
-                Player.Properties[PropertyEnum.MissionTrackerFilter, filterProtoRef] = missionTrackerFilterChange.IsFiltered;
+                ApplyMissionTrackerFilterChange(missionTrackerFiltersUpdate.MissionTrackerFilterChangesList[i]);
             }
+        }
+
+        private void ApplyMissionTrackerFilterChange(NetMessageMissionTrackerFilterChange missionTrackerFilterChange)
+        {
+            PrototypeId filterProtoRef = (PrototypeId)missionTrackerFilterChange.FilterPrototypeId;
+            if (!Verify.IsNotNull(filterProtoRef.As<MissionTrackerFilterPrototype>())) return;
+
+            Player.Properties[PropertyEnum.MissionTrackerFilter, filterProtoRef] = missionTrackerFilterChange.IsFiltered;
         }
 #endif
 
