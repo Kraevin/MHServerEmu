@@ -19,7 +19,14 @@
   </ItemGroup>
 
   <ItemGroup>
+    <ProjectReference Include="..\Gazillion\Gazillion.csproj" />
     <ProjectReference Include="..\MHServerEmu.Games\MHServerEmu.Games.csproj" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <Reference Include="Google.ProtocolBuffers">
+      <HintPath>..\..\dep\protobuf-csharp\Google.ProtocolBuffers.dll</HintPath>
+    </Reference>
   </ItemGroup>
 
   <ItemGroup>

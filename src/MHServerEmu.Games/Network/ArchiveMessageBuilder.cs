@@ -297,7 +297,7 @@ namespace MHServerEmu.Games.Network
             Vector3 position = regionLocation.Position;
             Orientation orientation = regionLocation.Orientation;
 
-            if (orientation.Pitch != 0f || orientation.Yaw != 0f)
+            if (orientation.Pitch != 0f || orientation.Roll != 0f)
                 fieldFlags |= LocomotionMessageFlags.HasFullOrientation;
 
             fieldFlags |= LocomotionState.GetFieldFlags(ref newLocomotionState, ref oldLocomotionState, withPathNodes);
@@ -544,7 +544,7 @@ namespace MHServerEmu.Games.Network
             Vector3 position = regionLocation.Position;
             Orientation orientation = regionLocation.Orientation;
 
-            if (orientation.Pitch != 0f || orientation.Yaw != 0f)
+            if (orientation.Pitch != 0f || orientation.Roll != 0f)
                 locoFieldFlags |= LocomotionMessageFlags.HasFullOrientation;
 
             // LocomotionState
