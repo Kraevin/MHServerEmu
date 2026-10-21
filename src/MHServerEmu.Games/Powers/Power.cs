@@ -30,6 +30,8 @@ namespace MHServerEmu.Games.Powers
 {
     public partial class Power : IKeyworded
     {
+        private static readonly Logger Logger = LogManager.CreateLogger();
+
         private const float PowerPositionSweepPadding = Locomotor.MovementSweepPadding;
         private const float PowerPositionSweepPaddingSquared = PowerPositionSweepPadding * PowerPositionSweepPadding;
 
@@ -3881,6 +3883,12 @@ namespace MHServerEmu.Games.Powers
                             locomotionOptions.Flags |= LocomotionFlags.DisableOrientation;
 
                         // NOTE: locomotor.FollowPath is client-only, so we just use 
+                        if (Vector3.IsFinite(powerApplication.TargetPosition) == false)
+                        {
+                            Logger.Warn($"Movement power has a non-finite destination: {powerApplication.TargetPosition}, " +
+                                $"userPosition={powerApplication.UserPosition}, targetEntityId={powerApplication.TargetEntityId}, " +
+                                $"movementSpeed={powerApplication.MovementSpeed}\nPower: {this}\nOwner: {Owner}\nRegionLocation: {Owner.RegionLocation}");
+                        }
                         locomotor.MoveTo(powerApplication.TargetPosition, ref locomotionOptions);
                     }
                 }
